@@ -1,0 +1,184 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run migrations
+      run: |
+        python manage.py migrate
+      env:
+        SECRET_KEY: test-secret-key
+        DEBUG: 'False'
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+
+    - name: Run tests
+      run: |
+        python manage.py test
+      env:
+        SECRET_KEY: test-secret-key
+        DEBUG: 'False'
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
+
+    - name: Run linting (flake8)
+      run: |
+        pip install flake8
+        flake8 authapp profiles users --max-line-length=120 --exclude=migrations
+      continue-on-error: true
+
+    - name: Run code formatting check (black)
+      run: |
+        pip install black
+        black --check authapp profiles users --line-length=120
+      continue-on-error: true
+
+  build:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Collect static files
+      run: |
+        python manage.py collectstatic --no-input
+      env:
+        SECRET_KEY: test-secret-key
+        DEBUG: 'False'
+      continue-on-error: true
+
+    - name: Build check
+      run: |
+        python -m py_compile authapp/views.py
+        python -m py_compile profiles/views.py
+        python -m py_compile users/models.py
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt bandit safety
+
+    - name: Run security checks (bandit)
+      run: |
+        bandit -r authapp profiles users -f json -o bandit-report.json
+      continue-on-error: true
+
+    - name: Check for known vulnerabilities (safety)
+      run: |
+        safety check --json
+      continue-on-error: true
+
+  quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt pylint
+
+    - name: Check code quality (pylint)
+      run: |
+        pylint authapp profiles users --exit-zero --output-format=colorized
+      continue-on-error: true
+
+  deploy-check:
+    runs-on: ubuntu-latest
+    needs: [test, build]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Verify requirements.txt
+      run: |
+        test -f requirements.txt && echo "requirements.txt found"
+
+    - name: Verify Procfile
+      run: |
+        test -f Procfile && echo "Procfile found"
+
+    - name: Verify Django settings
+      run: |
+        test -f backend1/settings.py && echo "Django settings found"
+
+    - name: Print deploy readiness
+      run: |
+        echo "✓ Code passes tests"
+        echo "✓ Code builds successfully"
+        echo "✓ Deployment ready"

@@ -98,23 +98,27 @@ class JWTAuthMiddleware:
         request.user = None
         request.auth_user = None
 
-        # Skip auth for auth endpoints and admin
+        # Skip auth for OAuth endpoints and admin
         if request.path.startswith('/auth/') or request.path.startswith('/admin/'):
             return self.get_response(request)
 
-        # Try to get token from Authorization header
+        # Try to get token from Authorization header first
         auth_header = request.headers.get('Authorization', '')
         token = None
 
         if auth_header.startswith('Bearer '):
             token = auth_header[7:]
+            print(f"[JWT] Bearer token found in Authorization header")
 
-        # Try to get token from cookie (for web portal)
+        # Try to get token from cookie (for web portal, cross-site)
         if not token:
             token = request.COOKIES.get('access_token')
+            if token:
+                print(f"[JWT] Token found in access_token cookie")
 
         if not token:
             if request.path.startswith('/api/'):
+                print(f"[JWT] No token for {request.method} {request.path}")
                 return JsonResponse(
                     {"status": "error", "message": "Authentication required"},
                     status=401
@@ -129,18 +133,24 @@ class JWTAuthMiddleware:
                 if user and user.is_active:
                     request.user = user
                     request.auth_user = user
+                    print(f"[JWT] Authenticated as {user.username}")
                 elif user and not user.is_active:
+                    print(f"[JWT] Account disabled: {user.username}")
                     return JsonResponse(
                         {"status": "error", "message": "Account is disabled"},
                         status=403
                     )
+                else:
+                    print(f"[JWT] User not found: {user_id}")
         except jwt.ExpiredSignatureError:
+            print(f"[JWT] Token expired")
             if request.path.startswith('/api/'):
                 return JsonResponse(
                     {"status": "error", "message": "Token expired"},
                     status=401
                 )
-        except jwt.InvalidTokenError:
+        except jwt.InvalidTokenError as e:
+            print(f"[JWT] Invalid token: {str(e)}")
             if request.path.startswith('/api/'):
                 return JsonResponse(
                     {"status": "error", "message": "Invalid token"},
@@ -148,6 +158,7 @@ class JWTAuthMiddleware:
                 )
 
         if request.path.startswith('/api/') and not getattr(request, 'user', None):
+            print(f"[JWT] API access denied for {request.method} {request.path}")
             return JsonResponse(
                 {"status": "error", "message": "Authentication required"},
                 status=401

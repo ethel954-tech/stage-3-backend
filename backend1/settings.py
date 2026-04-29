@@ -18,7 +18,7 @@ APPEND_SLASH = True
 
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [\
+CORS_ALLOWED_ORIGINS = [
     "https://quiet-youtiao-184c95.netlify.app",
     "http://localhost:3000",
     "http://localhost:5500",
@@ -130,11 +130,19 @@ USE_TZ = True
 
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
+# Cookie settings for cross-site auth (Netlify -> Railway)
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
-
 SESSION_COOKIE_SAMESITE = "None"
 CSRF_COOKIE_SAMESITE = "None"
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = False
+
+# Enable credentials in CORS responses
+CORS_EXPOSE_HEADERS = [
+    "Content-Type",
+    "X-CSRFToken",
+]
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
