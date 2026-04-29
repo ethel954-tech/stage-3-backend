@@ -24,8 +24,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5500",
     "http://localhost:5173",
 ]
-WEB_PORTAL_URL = os.environ.get('WEB_PORTAL_URL', 'http://localhost:5500')
-BACKEND_URL = os.environ.get('BACKEND_URL', 'http://localhost:8000')
+WEB_PORTAL_URL = os.environ.get('WEB_PORTAL_URL')
+BACKEND_URL = os.environ.get('BACKEND_URL')
 
 CORS_ALLOW_HEADERS = [
     "accept",
