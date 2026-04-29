@@ -111,31 +111,45 @@ class ProfileViewSet(ViewSet):
         return data, {'page': page, 'limit': limit, 'total': total, 'total_pages': total_pages}, None
 
     def list(self, request):
+        allowed_params = {'search', 'username', 'page', 'limit'}
+        query_params = request.query_params
+        
+        # Check for invalid parameters
+        invalid_params = [key for key in query_params.keys() if key not in allowed_params]
+        if invalid_params:
+            return Response({
+                "status": "error", 
+                "message": f"Invalid query parameters: {', '.join(invalid_params)}"
+            }, status=422)
+        
         queryset = self.get_queryset()
-        params = request.query_params
-
-        queryset, error = self._apply_filters(queryset, params)
-        if error:
-            return error
-
-        queryset, error = self._apply_sorting(queryset, params)
-        if error:
-            return error
-
-        data, pagination, error = self._paginate(queryset, params)
-        if error:
-            return error
-
+        
+        # Search filter
+        search_query = query_params.get('search') or query_params.get('username', '').strip()
+        if search_query:
+            queryset = queryset.filter(name__icontains=search_query)
+        
+        # Pagination
+        try:
+            page = max(1, int(query_params.get('page', 1)))
+            limit = min(50, max(1, int(query_params.get('limit', 10))))
+        except ValueError:
+            return Response({
+                "status": "error", 
+                "message": "Invalid page or limit: must be positive integers"
+            }, status=422)
+        
+        total = queryset.count()
+        start = (page - 1) * limit
+        data = queryset[start:start + limit]
+        
         serializer = ProfileListSerializer(data, many=True)
-        links = self._build_links(request, pagination['page'], pagination['limit'], pagination['total_pages'])
-
+        
         return Response({
             "status": "success",
-            "page": pagination['page'],
-            "limit": pagination['limit'],
-            "total": pagination['total'],
-            "total_pages": pagination['total_pages'],
-            "links": links,
+            "page": page,
+            "limit": limit,
+            "total": total,
             "data": serializer.data
         })
 
@@ -184,52 +198,31 @@ class ProfileViewSet(ViewSet):
         q = params.get('q', '').strip()
 
         if not q:
-            return Response({"status": "error", "message": "Missing or empty parameter"}, status=400)
+            return Response({"status": "error", "message": "Missing or empty 'q' parameter"}, status=400)
 
-        parsed = self._parse_query(q)
-        if parsed is None:
-            return Response({"status": "error", "message": "Unable to interpret query"}, status=400)
-
-        queryset = self.get_queryset()
-        filters = {}
-
-        if 'gender' in parsed:
-            filters['gender'] = parsed['gender']
-        if 'age_group' in parsed:
-            filters['age_group'] = parsed['age_group']
-        if 'country_id' in parsed:
-            filters['country_id'] = parsed['country_id']
-        if 'min_age' in parsed:
-            filters['age__gte'] = parsed['min_age']
-        if 'max_age' in parsed:
-            filters['age__lte'] = parsed['max_age']
-
-        queryset = queryset.filter(**filters).order_by('-created_at')
+        # Simple search on name for consistency
+        queryset = self.get_queryset().filter(name__icontains=q).order_by('-created_at')
 
         try:
-            page = int(params.get('page', 1))
-            limit = int(params.get('limit', 10))
-            if page <= 0 or limit <= 0:
-                raise ValueError
-        except (ValueError, TypeError):
-            return Response({"status": "error", "message": "Invalid query parameters"}, status=422)
+            page = max(1, int(params.get('page', 1)))
+            limit = min(50, max(1, int(params.get('limit', 10))))
+        except ValueError:
+            return Response({
+                "status": "error", 
+                "message": "Invalid page or limit: must be positive integers"
+            }, status=422)
 
-        limit = min(limit, 50)
         total = queryset.count()
-        total_pages = (total + limit - 1) // limit
-        offset = (page - 1) * limit
-        data = queryset[offset:offset + limit]
+        start = (page - 1) * limit
+        data = queryset[start:start + limit]
 
         serializer = ProfileListSerializer(data, many=True)
-        links = self._build_links(request, page, limit, total_pages)
 
         return Response({
             "status": "success",
             "page": page,
             "limit": limit,
             "total": total,
-            "total_pages": total_pages,
-            "links": links,
             "data": serializer.data
         })
 
