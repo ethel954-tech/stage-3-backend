@@ -43,7 +43,10 @@ class RateLimitMiddleware:
         return request.META.get('REMOTE_ADDR', 'unknown')
 
     def __call__(self, request):
-        if request.path.startswith('/auth/'):
+        if request.path.startswith('/auth/github/'):
+            limit = 10
+            window = 60
+        elif request.path.startswith('/auth/'):
             limit = 10
             window = 60
         elif request.path.startswith('/api/'):
@@ -165,4 +168,3 @@ class JWTAuthMiddleware:
             )
 
         return self.get_response(request)
-
