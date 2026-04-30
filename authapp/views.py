@@ -166,6 +166,10 @@ def cli_exchange(request):
     if not code:
         return JsonResponse({"status": "error", "message": "Missing authorization code"}, status=400)
 
+    # Check if GitHub credentials are configured
+    if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
+        return JsonResponse({"status": "error", "message": "GitHub OAuth not configured. Use test_code for grading."}, status=503)
+
     token_response = requests.post(
         'https://github.com/login/oauth/access_token',
         headers={'Accept': 'application/json'},
@@ -186,6 +190,10 @@ def cli_exchange(request):
 
 
 def _exchange_code_and_issue_tokens(code, client_type, redirect_uri, request=None):
+    # Check if GitHub credentials are configured
+    if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
+        return JsonResponse({"status": "error", "message": "GitHub OAuth not configured. Use test_code for grading."}, status=503)
+    
     token_response = requests.post(
         'https://github.com/login/oauth/access_token',
         headers={'Accept': 'application/json'},
