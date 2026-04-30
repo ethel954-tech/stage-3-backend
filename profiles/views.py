@@ -81,28 +81,36 @@ class ProfileViewSet(ViewSet):
         return queryset.order_by(f"{prefix}{sort_by}"), None
 
     # ----------------------------
-    # PAGINATION (FIXED)
+    # PAGINATION (FIXED - Handle empty/missing/invalid gracefully)
     # ----------------------------
     def _paginate(self, queryset, params):
+        page = 1
+        limit = 10
+        
         try:
-            page = params.get('page')
-            limit = params.get('limit')
+            page_param = params.get('page')
+            limit_param = params.get('limit')
 
-            page = int(page) if page and str(page).strip() else 1
-            limit = int(limit) if limit and str(limit).strip() else 10
+            if page_param:
+                page_str = str(page_param).strip()
+                if page_str:
+                    page_int = int(page_str)
+                    if page_int > 0:
+                        page = page_int
 
-            if page <= 0 or limit <= 0:
-                raise ValueError
+            if limit_param:
+                limit_str = str(limit_param).strip()
+                if limit_str:
+                    limit_int = int(limit_str)
+                    if limit_int > 0:
+                        limit = limit_int
 
         except (ValueError, TypeError):
-            return None, None, Response(
-                {"status": "error", "message": "Invalid page or limit: must be positive integers"},
-                status=422
-            )
+            pass
 
         limit = min(limit, 50)
         total = queryset.count()
-        total_pages = (total + limit - 1) // limit
+        total_pages = (total + limit - 1) // limit if limit > 0 else 0
         offset = (page - 1) * limit
         data = queryset[offset:offset + limit]
 
@@ -114,23 +122,20 @@ class ProfileViewSet(ViewSet):
         }, None
 
     # ----------------------------
-    # LIST (FULLY FIXED)
+    # LIST
     # ----------------------------
     def list(self, request):
         queryset = self.get_queryset()
         params = request.query_params
 
-        # Filters
         queryset, error = self._apply_filters(queryset, params)
         if error:
             return error
 
-        # Sorting
         queryset, error = self._apply_sorting(queryset, params)
         if error:
             return error
 
-        # Pagination
         data, meta, error = self._paginate(queryset, params)
         if error:
             return error
@@ -147,7 +152,7 @@ class ProfileViewSet(ViewSet):
         })
 
     # ----------------------------
-    # SEARCH (SEPARATE + CLEAN)
+    # SEARCH
     # ----------------------------
     @action(detail=False, methods=['get'])
     def search(self, request):
@@ -212,7 +217,7 @@ class ProfileViewSet(ViewSet):
                 profile.country_id,
                 profile.country_name,
                 profile.country_probability,
-                profile.created_at.isoformat(),
+                profile.created_at.isoformat()
             ])
 
         response = HttpResponse(output.getvalue(), content_type='text/csv')
