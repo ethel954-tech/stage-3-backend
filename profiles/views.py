@@ -111,7 +111,7 @@ class ProfileViewSet(ViewSet):
         return data, {'page': page, 'limit': limit, 'total': total, 'total_pages': total_pages}, None
 
     def list(self, request):
-        allowed_params = {'search', 'username', 'page', 'limit'}
+        allowed_params = {'search', 'username', 'page', 'limit', 'age_group', 'gender', 'country_id'}
         query_params = request.query_params
         
         # Check for invalid parameters
@@ -336,4 +336,3 @@ class ProfileViewSet(ViewSet):
             return Response(status=204)
         except Profile.DoesNotExist:
             return Response(status=404)
-
