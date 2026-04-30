@@ -95,6 +95,8 @@ def github_callback(request):
     client_type = request.session.get('oauth_client_type', 'web')
     redirect_uri = request.session.get('oauth_redirect_uri')
 
+    print("REDIRECT URI:", redirect_uri)
+
     if not code:
         response = JsonResponse({"status": "error", "message": "Missing authorization code"}, status=400)
         return _add_cors_headers(response, request)
